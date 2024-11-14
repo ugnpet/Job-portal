@@ -58,6 +58,9 @@ router.put('/:id', getJob, async (req, res) => {
   if (req.body.categoryId != null) {
     res.job.categoryId = req.body.categoryId;
   }
+  if (req.body.title == null || req.body.categoryId == null || req.body.description == null) {
+    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  }
 
   try {
     const updatedJob = await res.job.save();
@@ -69,10 +72,12 @@ router.put('/:id', getJob, async (req, res) => {
 
 // DELETE a job
 router.delete('/:id', getJob, async (req, res) => {
+  if (!req.params.id) {
+    return res.status(500).json({ message: 'ID parameter is missing' });
+  }
   try {
     await res.job.deleteOne();
     res.status(204).json({ message: 'Job deleted' });
-    //res.status(200).json({ message: 'Comment deleted successfully' }); 
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -49,6 +49,9 @@ router.put('/:id', getUser, async (req, res) => {
   if (req.body.email != null) {
     res.user.email = req.body.email;
   }
+  if (req.body.name == null || req.body.email == null) {
+    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  }
 
   try {
     const updatedUser = await res.user.save();

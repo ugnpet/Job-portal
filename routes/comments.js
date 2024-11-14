@@ -51,6 +51,9 @@ router.put('/comments/:id', getComment, async (req, res) => {
   if (req.body.content != null) {
     res.comment.content = req.body.content;
   }
+  if (req.body.content == null) {
+    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  }
 
   try {
     const updatedComment = await res.comment.save();
@@ -62,6 +65,9 @@ router.put('/comments/:id', getComment, async (req, res) => {
 
 // DELETE a comment
 router.delete('/comments/:id', getComment, async (req, res) => {
+  if (!req.params.id) {
+    return res.status(500).json({ message: 'ID parameter is missing' });
+  }
   try {
     await res.comment.deleteOne();
     res.status(204).json({ message: 'Comment deleted' });
