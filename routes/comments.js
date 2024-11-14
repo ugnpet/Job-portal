@@ -1,6 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const Comment = require('../models/Comment');
+const jwt = require('jsonwebtoken'); 
+require('dotenv').config(); 
+
+// Middleware to authenticate JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ message: 'Access denied: No token provided' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Access denied: Invalid token' });
+
+    req.user = user; 
+    next();
+  });
+}
 
 // Middleware to get comment by ID
 async function getComment(req, res, next) {
@@ -16,7 +33,7 @@ async function getComment(req, res, next) {
 }
 
 // GET comments for a job
-router.get('/jobs/:jobId/comments', async (req, res) => {
+router.get('/jobs/:jobId/comments', authenticateToken, async (req, res) => {
   try {
     const comments = await Comment.find({ jobId: req.params.jobId });
     res.json(comments);
@@ -26,7 +43,7 @@ router.get('/jobs/:jobId/comments', async (req, res) => {
 });
 
 // POST add a comment to a job
-router.post('/jobs/:jobId/comments', async (req, res) => {
+router.post('/jobs/:jobId/comments', authenticateToken, async (req, res) => {
   const comment = new Comment({
     content: req.body.content,
     jobId: req.params.jobId,
@@ -42,12 +59,12 @@ router.post('/jobs/:jobId/comments', async (req, res) => {
 });
 
 // GET comment by ID
-router.get('/comments/:id', getComment, (req, res) => {
+router.get('/comments/:id', authenticateToken, getComment, (req, res) => {
   res.json(res.comment);
 });
 
 // PUT update a comment
-router.put('/comments/:id', getComment, async (req, res) => {
+router.put('/comments/:id', authenticateToken, getComment, async (req, res) => {
   if (req.body.content != null) {
     res.comment.content = req.body.content;
   }
@@ -64,7 +81,7 @@ router.put('/comments/:id', getComment, async (req, res) => {
 });
 
 // DELETE a comment
-router.delete('/comments/:id', getComment, async (req, res) => {
+router.delete('/comments/:id', authenticateToken, getComment, async (req, res) => {
   if (!req.params.id) {
     return res.status(500).json({ message: 'ID parameter is missing' });
   }

@@ -1,8 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const bcrypt = require('bcrypt'); 
+const jwt = require('jsonwebtoken'); 
+require('dotenv').config(); 
 
-// Middleware to get user by ID
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; 
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403); 
+
+    req.user = user; 
+    next();
+  });
+}
+
 async function getUser(req, res, next) {
   let user;
   try {
@@ -15,17 +30,18 @@ async function getUser(req, res, next) {
   next();
 }
 
-// POST register a new user
 router.post('/', async (req, res) => {
-  
   if (!req.body.password || req.body.password.length < 7) {
     return res.status(422).json({ message: 'Password must be at least 7 characters long' });
   }
-  
+
+  const hashedPassword = await bcrypt.hash(req.body.password, 10);
+
   const user = new User({
     name: req.body.name,
     email: req.body.email,
-    password: req.body.password,
+    password: hashedPassword, 
+    role: req.body.role || 'user', 
   });
 
   try {
@@ -41,28 +57,61 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT: Update user information by ID
-router.put('/:id', getUser, async (req, res) => {
+
+router.post('/login', async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.body.email });
+    if (!user) return res.status(400).json({ message: 'Invalid email or password' });
+
+    const validPassword = await bcrypt.compare(req.body.password, user.password);
+    if (!validPassword) return res.status(400).json({ message: 'Invalid email or password' });
+
+
+    const token = jwt.sign(
+      { _id: user._id, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put('/:id', authenticateToken, getUser, async (req, res) => {
+  if (req.user._id !== req.params.id && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied' });
+  }
+
   if (req.body.name != null) {
     res.user.name = req.body.name;
   }
   if (req.body.email != null) {
     res.user.email = req.body.email;
   }
-  if (req.body.name == null || req.body.email == null) {
-    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  if (!req.body.name || !req.body.email) {
+    return res.status(400).json({ message: 'All fields must be provided. Missing field: name or email' });
   }
 
   try {
     const updatedUser = await res.user.save();
-    res.json(updatedUser);
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+    });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// GET user information
-router.get('/:id', getUser, (req, res) => {
+router.get('/:id', authenticateToken, getUser, (req, res) => {
+  if (req.user._id !== req.params.id && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied' });
+  }
+
   res.json(res.user);
 });
 

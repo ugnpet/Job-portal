@@ -1,6 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
+const jwt = require('jsonwebtoken'); 
+require('dotenv').config(); 
+
+// Middleware to authenticate JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ message: 'Access denied: No token provided' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Access denied: Invalid token' });
+
+    req.user = user; 
+    next();
+  });
+}
 
 // Middleware to get job by ID
 async function getJob(req, res, next) {
@@ -16,7 +33,7 @@ async function getJob(req, res, next) {
 }
 
 // GET all jobs
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const jobs = await Job.find();
     res.json(jobs);
@@ -26,12 +43,12 @@ router.get('/', async (req, res) => {
 });
 
 // GET job by ID
-router.get('/:id', getJob, (req, res) => {
+router.get('/:id', authenticateToken, getJob, (req, res) => {
   res.json(res.job);
 });
 
 // POST create a new job
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   const job = new Job({
     title: req.body.title,
     description: req.body.description,
@@ -48,7 +65,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update a job
-router.put('/:id', getJob, async (req, res) => {
+router.put('/:id',authenticateToken, getJob, async (req, res) => {
   if (req.body.title != null) {
     res.job.title = req.body.title;
   }
@@ -71,7 +88,7 @@ router.put('/:id', getJob, async (req, res) => {
 });
 
 // DELETE a job
-router.delete('/:id', getJob, async (req, res) => {
+router.delete('/:id', authenticateToken, getJob, async (req, res) => {
   if (!req.params.id) {
     return res.status(500).json({ message: 'ID parameter is missing' });
   }

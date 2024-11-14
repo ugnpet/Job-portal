@@ -3,6 +3,32 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Category = require('../models/Category');
 const Job = require('../models/Job');
+const jwt = require('jsonwebtoken'); 
+require('dotenv').config(); 
+
+// Middleware to authenticate JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ message: 'Access denied: No token provided' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Access denied: Invalid token' });
+
+    req.user = user; 
+    next();
+  });
+}
+
+// Middleware to check for admin role
+function isAdmin(req, res, next) {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied: Admins only' });
+  }
+}
 
 // Middleware to validate ObjectId format
 function validateObjectId(req, res, next) {
@@ -25,8 +51,8 @@ async function getCategory(req, res, next) {
   next();
 }
 
-// GET all categories
-router.get('/', async (req, res) => {
+// GET all categories (public route)
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const categories = await Category.find();
     res.json(categories);
@@ -35,8 +61,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST create a new category
-router.post('/', async (req, res) => {
+// POST create a new category (admin only)
+router.post('/', authenticateToken, isAdmin, async (req, res) => {
   if (req.body.id) {
     return res.status(400).json({ message: 'ID should not be set when creating a new category' });
   }
@@ -53,9 +79,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-
-// PUT update a category
-router.put('/:id', validateObjectId, getCategory, async (req, res) => {
+// PUT update a category (admin only)
+router.put('/:id', authenticateToken, isAdmin, validateObjectId, getCategory, async (req, res) => {
   if (req.body.name != null) {
     res.category.name = req.body.name;
   }
@@ -72,11 +97,8 @@ router.put('/:id', validateObjectId, getCategory, async (req, res) => {
   }
 });
 
-// DELETE a category
-router.delete('/:id', validateObjectId, getCategory, async (req, res) => {
-  if (!req.params.id) {
-    return res.status(500).json({ message: 'ID parameter is missing' });
-  }
+// DELETE a category (admin only)
+router.delete('/:id', authenticateToken, isAdmin, validateObjectId, getCategory, async (req, res) => {
   try {
     await res.category.deleteOne();
     res.status(204).json({ message: 'Category deleted' });
@@ -85,7 +107,7 @@ router.delete('/:id', validateObjectId, getCategory, async (req, res) => {
   }
 });
 
-// GET jobs by category
+// GET jobs by category (public route)
 router.get('/:id/jobs', validateObjectId, async (req, res) => {
   try {
     const jobs = await Job.find({ categoryId: req.params.id });
@@ -98,9 +120,8 @@ router.get('/:id/jobs', validateObjectId, async (req, res) => {
   }
 });
 
-module.exports = router;
-
-router.get('/all-comments', async (req, res) => {
+// GET all comments (authenticated users)
+router.get('/all-comments', authenticateToken, async (req, res) => {
   try {
     const categories = await Category.aggregate([
       {
@@ -136,3 +157,5 @@ router.get('/all-comments', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+module.exports = router;

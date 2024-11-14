@@ -7,8 +7,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-const mongoURI = 'mongodb+srv://ugne2p:JLmTDby4ImRemDdT@cluster0.umdhm.mongodb.net/';
+const mongoURI = process.env.MONGO_URI;
 
 mongoose.connect(mongoURI);
 
