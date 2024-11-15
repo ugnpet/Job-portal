@@ -31,31 +31,42 @@ async function getUser(req, res, next) {
 }
 
 router.post('/', async (req, res) => {
-  if (!req.body.password || req.body.password.length < 7) {
-    return res.status(422).json({ message: 'Password must be at least 7 characters long' });
+  const { name, email, password, role } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: 'Name, email, and password are required.' });
   }
 
-  const hashedPassword = await bcrypt.hash(req.body.password, 10);
-
-  const user = new User({
-    name: req.body.name,
-    email: req.body.email,
-    password: hashedPassword, 
-    role: req.body.role || 'user', 
-  });
+  if (password.length < 7) {
+    return res.status(422).json({ message: 'Password must be at least 7 characters long.' });
+  }
 
   try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: 'Email is already registered.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || 'user', 
+    });
+
     const newUser = await user.save();
-    res.status(201).json({ 
+    res.status(201).json({
       _id: newUser._id,
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
     });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(500).json({ message: 'An error occurred. Please try again later.' });
   }
 });
+
 
 
 router.post('/login', async (req, res) => {
