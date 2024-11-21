@@ -1,23 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
-const jwt = require('jsonwebtoken'); 
-require('dotenv').config(); 
-
-// Middleware to authenticate JWT token
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.status(401).json({ message: 'Access denied: No token provided' });
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Access denied: Invalid token' });
-
-    req.user = user; 
-    next();
-  });
-}
+const { authenticateToken, authorizeAdmin } = require('./auth');
 
 // Middleware to get job by ID
 async function getJob(req, res, next) {
@@ -32,7 +16,7 @@ async function getJob(req, res, next) {
   next();
 }
 
-// GET all jobs
+// GET all jobs 
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const jobs = await Job.find();
@@ -42,18 +26,18 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// GET job by ID
+// GET job by ID 
 router.get('/:id', authenticateToken, getJob, (req, res) => {
   res.json(res.job);
 });
 
-// POST create a new job
-router.post('/', authenticateToken, async (req, res) => {
+// POST create a new job (admin only)
+router.post('/', authenticateToken, authorizeAdmin, async (req, res) => {
   const job = new Job({
     title: req.body.title,
     description: req.body.description,
     categoryId: req.body.categoryId,
-    userId: req.body.userId, 
+    userId: req.body.userId,
   });
 
   try {
@@ -64,8 +48,8 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// PUT update a job
-router.put('/:id',authenticateToken, getJob, async (req, res) => {
+// PUT update a job (admin only)
+router.put('/:id', authenticateToken, authorizeAdmin, getJob, async (req, res) => {
   if (req.body.title != null) {
     res.job.title = req.body.title;
   }
@@ -87,8 +71,8 @@ router.put('/:id',authenticateToken, getJob, async (req, res) => {
   }
 });
 
-// DELETE a job
-router.delete('/:id', authenticateToken, getJob, async (req, res) => {
+// DELETE a job (admin only)
+router.delete('/:id', authenticateToken, authorizeAdmin, getJob, async (req, res) => {
   if (!req.params.id) {
     return res.status(500).json({ message: 'ID parameter is missing' });
   }

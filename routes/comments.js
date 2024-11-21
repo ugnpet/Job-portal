@@ -1,23 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Comment = require('../models/Comment');
-const jwt = require('jsonwebtoken'); 
-require('dotenv').config(); 
-
-// Middleware to authenticate JWT token
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.status(401).json({ message: 'Access denied: No token provided' });
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Access denied: Invalid token' });
-
-    req.user = user; 
-    next();
-  });
-}
+const { authenticateToken } = require('./auth');
 
 // Middleware to get comment by ID
 async function getComment(req, res, next) {
@@ -32,7 +16,15 @@ async function getComment(req, res, next) {
   next();
 }
 
-// GET comments for a job
+// Middleware to check if the user owns the comment
+function authorizeCommentOwner(req, res, next) {
+  if (res.comment.userId.toString() !== req.user._id) {
+    return res.status(403).json({ message: 'Access denied. You do not own this comment.' });
+  }
+  next();
+}
+
+// GET comments for a job 
 router.get('/jobs/:jobId/comments', authenticateToken, async (req, res) => {
   try {
     const comments = await Comment.find({ jobId: req.params.jobId });
@@ -47,7 +39,7 @@ router.post('/jobs/:jobId/comments', authenticateToken, async (req, res) => {
   const comment = new Comment({
     content: req.body.content,
     jobId: req.params.jobId,
-    userId: req.body.userId, 
+    userId: req.user._id, 
   });
 
   try {
@@ -58,18 +50,17 @@ router.post('/jobs/:jobId/comments', authenticateToken, async (req, res) => {
   }
 });
 
-// GET comment by ID
+// GET comment by ID 
 router.get('/comments/:id', authenticateToken, getComment, (req, res) => {
   res.json(res.comment);
 });
 
-// PUT update a comment
-router.put('/comments/:id', authenticateToken, getComment, async (req, res) => {
+// PUT update a comment (only comment owner)
+router.put('/comments/:id', authenticateToken, getComment, authorizeCommentOwner, async (req, res) => {
   if (req.body.content != null) {
     res.comment.content = req.body.content;
-  }
-  if (req.body.content == null) {
-    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  } else {
+    return res.status(400).json({ message: 'Content is required.' });
   }
 
   try {
@@ -80,11 +71,8 @@ router.put('/comments/:id', authenticateToken, getComment, async (req, res) => {
   }
 });
 
-// DELETE a comment
-router.delete('/comments/:id', authenticateToken, getComment, async (req, res) => {
-  if (!req.params.id) {
-    return res.status(500).json({ message: 'ID parameter is missing' });
-  }
+// DELETE a comment (only comment owner)
+router.delete('/comments/:id', authenticateToken, getComment, authorizeCommentOwner, async (req, res) => {
   try {
     await res.comment.deleteOne();
     res.status(204).json({ message: 'Comment deleted' });
