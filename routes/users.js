@@ -3,10 +3,9 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const RefreshToken = require('../models/RefreshToken');
 const {
   generateAccessToken,
-  generateRefreshToken,
+  setRefreshTokenCookie,
   authenticateToken,
 } = require('./auth');
 
@@ -58,51 +57,31 @@ router.post('/login', async (req, res) => {
     if (!validPassword) return res.status(400).json({ message: 'Invalid email or password' });
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = await generateRefreshToken(user);
+    setRefreshTokenCookie(res, user);
 
-    res.json({ accessToken, refreshToken });
+    res.json({ accessToken });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 // Refresh Access Token
-router.post('/token', async (req, res) => {
-  const { token } = req.body;
+router.post('/token', (req, res) => {
+  const token = req.cookies.refreshToken; // Retrieve refresh token from cookie
   if (!token) return res.status(401).json({ message: 'Refresh token is required' });
 
-  try {
-    const storedToken = await RefreshToken.findOne({ token });
-    if (!storedToken) return res.status(403).json({ message: 'Invalid refresh token' });
+  jwt.verify(token, process.env.REFRESH_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Invalid refresh token' });
 
-    if (new Date() > storedToken.expiryDate) {
-      await RefreshToken.deleteOne({ token });
-      return res.status(403).json({ message: 'Refresh token expired' });
-    }
-
-    jwt.verify(token, process.env.REFRESH_SECRET, async (err, user) => {
-      if (err) return res.status(403).json({ message: 'Invalid refresh token' });
-
-      const accessToken = generateAccessToken({ _id: user._id, role: user.role });
-      res.json({ accessToken });
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    const accessToken = generateAccessToken({ _id: user._id, role: user.role });
+    res.json({ accessToken });
+  });
 });
 
-// Revoke Refresh Token
-router.post('/logout', async (req, res) => {
-  const { token } = req.body;
-  try {
-    const deletedToken = await RefreshToken.deleteOne({ token });
-    if (deletedToken.deletedCount === 0) {
-      return res.status(404).json({ message: 'Token not found' });
-    }
-    res.status(200).json({ message: 'Refresh token revoked' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+// Revoke Refresh Token (Logout)
+router.post('/logout', (req, res) => {
+  res.clearCookie('refreshToken'); // Clear the refresh token cookie
+  res.status(200).json({ message: 'Logged out successfully' });
 });
 
 // Update user data (only the same user can update their profile)

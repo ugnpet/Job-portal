@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const RefreshToken = require('../models/RefreshToken');
 require('dotenv').config();
 
 // Generate Access Token
@@ -11,24 +10,23 @@ function generateAccessToken(user) {
   );
 }
 
-// Generate Refresh Token and store it in the database
-async function generateRefreshToken(user) {
+// Generate Refresh Token and set it in an HttpOnly cookie
+function setRefreshTokenCookie(res, user) {
   const token = jwt.sign(
     { _id: user._id, role: user.role },
     process.env.REFRESH_SECRET,
-    { expiresIn: '7d' } 
+    { expiresIn: '7d' }
   );
 
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + 7);
+  // Set cookie options
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', 
+    sameSite: 'Strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, 
+  };
 
-  const refreshToken = new RefreshToken({
-    token,
-    userId: user._id,
-    expiryDate,
-  });
-
-  await refreshToken.save();
+  res.cookie('refreshToken', token, options);
   return token;
 }
 
@@ -54,9 +52,23 @@ function authorizeAdmin(req, res, next) {
   next();
 }
 
+// Middleware to refresh the Access Token using the Refresh Token in the cookie
+function refreshAccessToken(req, res) {
+  const token = req.cookies.refreshToken; 
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.REFRESH_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+
+    const newAccessToken = generateAccessToken({ _id: user._id, role: user.role });
+    res.json({ accessToken: newAccessToken });
+  });
+}
+
 module.exports = {
   generateAccessToken,
-  generateRefreshToken,
+  setRefreshTokenCookie,
   authenticateToken,
   authorizeAdmin,
+  refreshAccessToken,
 };
