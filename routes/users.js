@@ -57,13 +57,14 @@ router.post('/login', async (req, res) => {
     if (!validPassword) return res.status(400).json({ message: 'Invalid email or password' });
 
     const accessToken = generateAccessToken(user);
-    setRefreshTokenCookie(res, user);
+    const refreshToken = setRefreshTokenCookie(res, user); 
 
-    res.json({ accessToken });
+    res.json({ accessToken, refreshToken });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
 
 // Refresh Access Token
 router.post('/token', (req, res) => {
