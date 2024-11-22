@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser'); // Required for parsing cookies
 const User = require('../models/User');
 const {
   generateAccessToken,
   setRefreshTokenCookie,
   authenticateToken,
 } = require('./auth');
+
+// Middleware for parsing cookies (specific to this router, optional if globally used)
+router.use(cookieParser());
+
 
 // Create a new user
 router.post('/', async (req, res) => {
@@ -57,7 +62,7 @@ router.post('/login', async (req, res) => {
     if (!validPassword) return res.status(400).json({ message: 'Invalid email or password' });
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = setRefreshTokenCookie(res, user); 
+    const refreshToken = setRefreshTokenCookie(res, user);
 
     res.json({ accessToken, refreshToken });
   } catch (err) {
@@ -65,14 +70,18 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
 // Refresh Access Token
 router.post('/token', (req, res) => {
+  console.log('Cookies:', req.cookies); // Debug log for cookies
+
   const token = req.cookies.refreshToken; // Retrieve refresh token from cookie
   if (!token) return res.status(401).json({ message: 'Refresh token is required' });
 
   jwt.verify(token, process.env.REFRESH_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Invalid refresh token' });
+    if (err) {
+      console.error('JWT Verify Error:', err);
+      return res.status(403).json({ message: 'Invalid refresh token' });
+    }
 
     const accessToken = generateAccessToken({ _id: user._id, role: user.role });
     res.json({ accessToken });
