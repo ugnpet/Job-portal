@@ -4,8 +4,9 @@ const JobSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
   categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now },
+  remote: { type: Boolean, default: false }, 
+  jobType: { type: String, enum: ['full-time', 'part-time', 'freelance', 'internship'], default: 'full-time' },
+  experienceLevel: { type: String, enum: ['entry', 'mid', 'senior'], default: 'entry' }, 
 });
 
 module.exports = mongoose.model('Job', JobSchema);
