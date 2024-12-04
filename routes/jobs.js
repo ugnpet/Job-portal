@@ -37,7 +37,10 @@ router.post('/', authenticateToken, authorizeAdmin, async (req, res) => {
     title: req.body.title,
     description: req.body.description,
     categoryId: req.body.categoryId,
-    userId: req.body.userId,
+    remote: req.body.remote || false,
+    jobType: req.body.jobType || 'full-time',
+    experienceLevel: req.body.experienceLevel || 'entry',
+    userId: req.user._id,
   });
 
   try {
@@ -59,8 +62,14 @@ router.put('/:id', authenticateToken, authorizeAdmin, getJob, async (req, res) =
   if (req.body.categoryId != null) {
     res.job.categoryId = req.body.categoryId;
   }
-  if (req.body.title == null || req.body.categoryId == null || req.body.description == null) {
-    return res.status(400).json({ message: 'All fields must be provided. Missing field: name' });
+  if (req.body.remote != null) {
+    res.job.remote = req.body.remote;
+  }
+  if (req.body.jobType != null) {
+    res.job.jobType = req.body.jobType;
+  }
+  if (req.body.experienceLevel != null) {
+    res.job.experienceLevel = req.body.experienceLevel;
   }
 
   try {
@@ -73,9 +82,6 @@ router.put('/:id', authenticateToken, authorizeAdmin, getJob, async (req, res) =
 
 // DELETE a job (admin only)
 router.delete('/:id', authenticateToken, authorizeAdmin, getJob, async (req, res) => {
-  if (!req.params.id) {
-    return res.status(500).json({ message: 'ID parameter is missing' });
-  }
   try {
     await res.job.deleteOne();
     res.status(204).json({ message: 'Job deleted' });
